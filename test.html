@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Leaflet Fix</title>
+
+  <!-- Leaflet CSS (must load) -->
+  <link rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    html,body { height:100%; margin:0; }
+    nav { background:#fff; border-bottom:3px solid #d32; padding:12px 18px; display:flex; justify-content:space-between; align-items:center; }
+    nav h1 { color:#d32; margin:0; font-size:18px; }
+    nav .links a { margin-left:12px; color:#000; text-decoration:none; font-weight:600; }
+    #map { width:100%; height: calc(100vh - 60px); } /* leave space for navbar */
+    .error-banner { color:white; background:#d32; padding:8px 12px; display:none; }
+  </style>
+</head>
+<body>
+  <nav>
+    <h1>RunSocial</h1>
+    <div class="links">
+      <a href="#">Home</a>
+      <a href="#">Leaderboard</a>
+      <a href="#">Routes</a>
+      <a href="#">Login</a>
+      <a href="#">Sign Up</a>
+    </div>
+  </nav>
+
+  <div id="map"></div>
+  <div id="error" class="error-banner"></div>
+
+  <!-- Do NOT put the Leaflet script with async/defer here; we will load and detect it -->
+  <script>
+    // Path of official CDN
+    const LEAFLET_CDN = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+    // initMap function — runs only after Leaflet is loaded
+    function initMap() {
+      try {
+        if (typeof L === 'undefined') throw new Error('Leaflet (L) is undefined after load.');
+        // Create map
+        const map = L.map('map').setView([12.9716, 77.5946], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        L.marker([12.9716, 77.5946])
+          .addTo(map)
+          .bindPopup('Bangalore Central Route')
+          .openPopup();
+
+        console.log('Leaflet loaded and map initialized.');
+      } catch (err) {
+        reportError('Map init failed: ' + err.message);
+        console.error(err);
+      }
+    }
+
+    function reportError(msg) {
+      const el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    // Helper to dynamically load the Leaflet script and call initMap on load
+    function loadLeafletThenInit() {
+      // If already loaded (e.g., some other script), just init
+      if (typeof L !== 'undefined') { initMap(); return; }
+
+      const s = document.createElement('script');
+      s.src = LEAFLET_CDN;
+      s.onload = () => {
+        // small defer to ensure L is fully available
+        setTimeout(() => {
+          if (typeof L === 'undefined') {
+            reportError('Leaflet loaded but L is still undefined.');
+            console.error('Leaflet loaded but L is undefined.');
+          } else {
+            initMap();
+          }
+        }, 0);
+      };
+      s.onerror = () => {
+        reportError('Failed to load Leaflet script from CDN. Check network or try opening via localhost/server.');
+        console.error('Failed to load Leaflet script:', LEAFLET_CDN);
+      };
+      document.head.appendChild(s);
+    }
+
+    // Run when DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadLeafletThenInit);
+    } else {
+      loadLeafletThenInit();
+    }
+  </script>
+</body>
+</html>
