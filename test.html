@@ -3,101 +3,250 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Leaflet Fix</title>
+  <title>ReDa Map (with closable tip)</title>
 
-  <!-- Leaflet CSS (must load) -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Tailwind & font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+
+  <!-- Leaflet CSS (jsDelivr) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+
+  <!-- Leaflet.draw CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+
+  <!-- Geocoder CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css" />
 
   <style>
-    html,body { height:100%; margin:0; }
-    nav { background:#fff; border-bottom:3px solid #d32; padding:12px 18px; display:flex; justify-content:space-between; align-items:center; }
-    nav h1 { color:#d32; margin:0; font-size:18px; }
-    nav .links a { margin-left:12px; color:#000; text-decoration:none; font-weight:600; }
-    #map { width:100%; height: calc(100vh - 60px); } /* leave space for navbar */
-    .error-banner { color:white; background:#d32; padding:8px 12px; display:none; }
+    html,body { height:100%; margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; }
+    #map { width:100%; height:100vh; }
+    .map-topbar { position: absolute; left: 12px; top: 12px; z-index: 1000; }
+    .map-controls { position: absolute; right: 12px; top: 12px; z-index: 1000; display:flex; gap:8px; flex-direction:column; }
+    .info-box {
+      position:absolute;
+      left:12px;
+      bottom:12px;
+      z-index:1000;
+      background:rgba(255,255,255,0.98);
+      padding:12px 14px;
+      border-radius:12px;
+      box-shadow:0 8px 20px rgba(0,0,0,0.08);
+      font-size:14px;
+      max-width:420px;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .info-text { flex:1; }
+    .info-close {
+      background:transparent;
+      border:0;
+      font-size:18px;
+      color:#374151;
+      cursor:pointer;
+      padding:4px;
+      line-height:1;
+      border-radius:6px;
+    }
+    .info-close:focus { outline:2px solid rgba(220,38,38,0.25); }
+    .btn { background:#dc2626; color:white; padding:8px 12px; border-radius:999px; font-weight:600; border:none; cursor:pointer; }
+    .btn.gray { background:#f3f4f6; color:#111827; }
+    /* small floating show-tip button when closed */
+    .show-tip-btn {
+      position: absolute;
+      left: 12px;
+      bottom: 16px;
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width:44px;
+      height:44px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+      cursor: pointer;
+      border: 1px solid rgba(0,0,0,0.06);
+      font-size:20px;
+    }
+    .show-tip-btn:focus { outline: 2px solid rgba(99,102,241,0.25); }
   </style>
 </head>
 <body>
-  <nav>
-    <h1>RunSocial</h1>
-    <div class="links">
-      <a href="#">Home</a>
-      <a href="#">Leaderboard</a>
-      <a href="#">Routes</a>
-      <a href="#">Login</a>
-      <a href="#">Sign Up</a>
-    </div>
-  </nav>
-
   <div id="map"></div>
-  <div id="error" class="error-banner"></div>
 
-  <!-- Do NOT put the Leaflet script with async/defer here; we will load and detect it -->
+  <div class="map-topbar">
+    <div class="p-2 bg-white rounded-xl shadow-md flex gap-2 items-center">
+      <button id="locate-btn" class="btn gray" title="Center on my location">📍 My Location</button>
+      <button id="start-route-btn" class="btn" title="Start route planning">Start Route Planning</button>
+      <button id="export-geojson" class="btn gray" title="Export drawn routes as GeoJSON">Export</button>
+      <button id="clear-btn" class="btn gray" title="Clear</button>
+    </div>
+  </div>
+
+  <div class="map-controls">
+    <div class="p-2 bg-white rounded-xl shadow-md text-sm" id="distance-box">Route distance: <strong id="distance-val">0 km</strong></div>
+  </div>
+
+  <!-- Tip box (dismissible) -->
+  <div id="reda-tip" class="info-box" role="dialog" aria-live="polite" aria-label="Map tip">
+    <div class="info-text">
+      <div style="font-weight:700; margin-bottom:6px;">Tip</div>
+      <div>Use the search box (top-left on the map) to find locations. Click <strong>Start Route Planning</strong> to draw a route. Press <kbd>R</kbd> to toggle planning mode quickly.</div>
+    </div>
+    <button id="reda-tip-close" class="info-close" aria-label="Close tip" title="Close tip">✕</button>
+  </div>
+
+  <!-- Floating small button shown after tip closed -->
+  <button id="show-tip-btn" class="show-tip-btn" aria-label="Show Tip" title="Show Tip">💡</button>
+
+  <!-- SCRIPTS in safe order (Leaflet first) -->
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+
   <script>
-    // Path of official CDN
-    const LEAFLET_CDN = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    document.addEventListener('DOMContentLoaded', () => {
+      // TIP state handling
+      const TIP_KEY = 'reda_tip_closed_v1';
+      const tipEl = document.getElementById('reda-tip');
+      const tipCloseBtn = document.getElementById('reda-tip-close');
+      const showTipBtn = document.getElementById('show-tip-btn');
 
-    // initMap function — runs only after Leaflet is loaded
-    function initMap() {
-      try {
-        if (typeof L === 'undefined') throw new Error('Leaflet (L) is undefined after load.');
-        // Create map
-        const map = L.map('map').setView([12.9716, 77.5946], 13);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '&copy; OpenStreetMap contributors'
-        }).addTo(map);
-
-        L.marker([12.9716, 77.5946])
-          .addTo(map)
-          .bindPopup('Bangalore Central Route')
-          .openPopup();
-
-        console.log('Leaflet loaded and map initialized.');
-      } catch (err) {
-        reportError('Map init failed: ' + err.message);
-        console.error(err);
+      function setTipHidden(hidden) {
+        if (hidden) {
+          tipEl.style.display = 'none';
+          showTipBtn.style.display = 'flex';
+          localStorage.setItem(TIP_KEY, '1');
+          tipCloseBtn.setAttribute('aria-pressed', 'true');
+        } else {
+          tipEl.style.display = 'flex';
+          showTipBtn.style.display = 'none';
+          localStorage.removeItem(TIP_KEY);
+          tipCloseBtn.setAttribute('aria-pressed', 'false');
+          tipCloseBtn.focus();
+        }
       }
-    }
 
-    function reportError(msg) {
-      const el = document.getElementById('error');
-      el.textContent = msg;
-      el.style.display = 'block';
-    }
+      // initialize tip visibility from localStorage
+      const closed = localStorage.getItem(TIP_KEY) === '1';
+      setTipHidden(closed);
 
-    // Helper to dynamically load the Leaflet script and call initMap on load
-    function loadLeafletThenInit() {
-      // If already loaded (e.g., some other script), just init
-      if (typeof L !== 'undefined') { initMap(); return; }
+      tipCloseBtn.addEventListener('click', () => setTipHidden(true));
+      showTipBtn.addEventListener('click', () => setTipHidden(false));
 
-      const s = document.createElement('script');
-      s.src = LEAFLET_CDN;
-      s.onload = () => {
-        // small defer to ensure L is fully available
-        setTimeout(() => {
-          if (typeof L === 'undefined') {
-            reportError('Leaflet loaded but L is still undefined.');
-            console.error('Leaflet loaded but L is undefined.');
-          } else {
-            initMap();
+      // also allow ESC to close the tip when it's open
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          if (tipEl.style.display !== 'none') setTipHidden(true);
+        }
+      });
+
+      // ----------- MAP INITIALIZATION -----------
+      // safety checks
+      if (typeof window.L === 'undefined') {
+        console.error('Leaflet not loaded (L is undefined). Map cannot initialize.');
+        return;
+      }
+
+      const map = L.map('map', { zoomControl: true }).setView([20.5937,78.9629], 5);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      // add geocoder control
+      try { L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map); }
+      catch (err) { console.warn('Geocoder control not available:', err); }
+
+      const drawnItems = new L.FeatureGroup().addTo(map);
+
+      const editControl = new L.Control.Draw({ draw: false, edit: { featureGroup: drawnItems } }).addTo(map);
+
+      map.on(L.Draw.Event.CREATED, function(e) {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
+        updateDistanceDisplay();
+      });
+      map.on(L.Draw.Event.EDITED, () => updateDistanceDisplay());
+      map.on(L.Draw.Event.DELETED, () => updateDistanceDisplay());
+
+      function updateDistanceDisplay() {
+        let totalKm = 0;
+        drawnItems.eachLayer(layer => {
+          if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+            const coords = layer.getLatLngs().map(ll => [ll.lng, ll.lat]);
+            if (coords.length >= 2 && typeof window.turf !== 'undefined') {
+              const line = turf.lineString(coords);
+              totalKm += turf.length(line, { units: 'kilometers' });
+            }
           }
-        }, 0);
-      };
-      s.onerror = () => {
-        reportError('Failed to load Leaflet script from CDN. Check network or try opening via localhost/server.');
-        console.error('Failed to load Leaflet script:', LEAFLET_CDN);
-      };
-      document.head.appendChild(s);
-    }
+        });
+        document.getElementById('distance-val').textContent = totalKm.toFixed(2) + ' km';
+      }
 
-    // Run when DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', loadLeafletThenInit);
-    } else {
-      loadLeafletThenInit();
-    }
+      // Start route planning toggle
+      const startBtn = document.getElementById('start-route-btn');
+      let drawingMode = false;
+      startBtn.addEventListener('click', () => {
+        if (!drawingMode) {
+          new L.Draw.Polyline(map, { shapeOptions: { color: '#dc2626', weight: 4 } }).enable();
+          startBtn.textContent = 'Exit Planning';
+          drawingMode = true;
+        } else {
+          startBtn.textContent = 'Start Route Planning';
+          drawingMode = false;
+        }
+      });
+
+      // locate
+      document.getElementById('locate-btn').addEventListener('click', () => {
+        if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+        navigator.geolocation.getCurrentPosition(pos => {
+          map.setView([pos.coords.latitude, pos.coords.longitude], 14);
+          L.circle([pos.coords.latitude, pos.coords.longitude], { radius: Math.max(30, pos.coords.accuracy/2), color:'#3b82f6', fillOpacity:0.15 }).addTo(map);
+        }, err => alert('Unable to retrieve your location: ' + err.message));
+      });
+
+      // export geojson
+      document.getElementById('export-geojson').addEventListener('click', () => {
+        if (drawnItems.getLayers().length === 0) { alert('No drawn routes to export.'); return; }
+        const geojson = drawnItems.toGeoJSON();
+        const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `reda-route-${new Date().toISOString().replace(/[:.]/g,'-')}.geojson`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      });
+
+      // clear
+      document.getElementById('clear-btn').addEventListener('click', () => {
+        if (confirm('Remove all drawn routes?')) {
+          drawnItems.clearLayers();
+          updateDistanceDisplay();
+        }
+      });
+
+      // attempt center on user at load
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+        }, () => {});
+      }
+
+      // keyboard shortcut R toggles draw mode
+      document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey) startBtn.click();
+      });
+      // --------------------------------------------
+    });
   </script>
 </body>
 </html>

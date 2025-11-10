@@ -58,14 +58,29 @@
                     <a href="#" class="text-gray-600 hover:text-red-600 font-medium transition duration-150 ease-in-out">Gear Reviews</a>
                 </div>
                 
-                <!-- Sign In / Login Buttons -->
-                <div class="hidden md:flex items-center space-x-3">
-                    <button class="text-gray-600 hover:text-red-600 font-medium p-2 rounded-lg transition duration-150 ease-in-out">
-                        Login
-                    </button>
-                    <button class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700 transition duration-150 ease-in-out shadow-lg shadow-red-500/50">
-                        Sign Up
-                    </button>
+                <!-- Auth Buttons & User Profile -->
+                <div class="hidden md:flex items-center space-x-4">
+                    <!-- Sign In / Login Buttons -->
+                    <div id="authButtons" class="flex items-center space-x-3">
+                        <a href="login.html" class="text-gray-600 hover:text-red-600 font-medium p-2 rounded-lg transition duration-150 ease-in-out">
+                            Login
+                        </a>
+                        <a href="login.html?signup=true" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700 transition duration-150 ease-in-out shadow-lg shadow-red-500/50">
+                            Sign Up
+                        </a>
+                    </div>
+                    <!-- User Profile (Hidden by default) -->
+                    <div id="userProfile" class="hidden items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                                <span id="userInitial" class="text-red-600 font-semibold text-sm"></span>
+                            </div>
+                            <span id="username" class="text-gray-700 font-medium"></span>
+                        </div>
+                        <button onclick="logout()" class="text-gray-500 hover:text-red-600 font-medium transition-colors duration-150">
+                            Logout
+                        </button>
+                    </div>
                 </div>
                 
                 <!-- Mobile Menu Button (Hamburger) -->
@@ -86,9 +101,33 @@
                 <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-red-50 hover:text-red-600">Leaderboard</a>
                 <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-red-50 hover:text-red-600">Community</a>
                 <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:bg-red-50 hover:text-red-600">Gear Reviews</a>
-                <div class="py-2 space-y-2">
-                    <button class="w-full text-center text-gray-700 hover:text-red-600 font-medium py-2 rounded-md border border-gray-200">Login</button>
-                    <button class="w-full bg-red-600 text-white text-center py-2 rounded-md font-semibold hover:bg-red-700">Sign Up</button>
+                <!-- Mobile Auth Section -->
+                <div id="mobileAuthButtons" class="py-2 space-y-2">
+                    <a href="login.html" class="block w-full text-center text-gray-700 hover:text-red-600 font-medium py-2 rounded-md border border-gray-200">
+                        Login
+                    </a>
+                    <a href="login.html?signup=true" class="block w-full bg-red-600 text-white text-center py-2 rounded-md font-semibold hover:bg-red-700">
+                        Sign Up
+                    </a>
+                </div>
+                <!-- Mobile User Profile -->
+                <div id="mobileUserProfile" class="hidden">
+                    <div class="py-3 px-4 border-t border-b border-gray-100">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                                <span id="mobileUserInitial" class="text-red-600 font-semibold"></span>
+                            </div>
+                            <div class="flex-1">
+                                <span id="mobileUsername" class="block text-gray-900 font-medium"></span>
+                                <span class="text-sm text-gray-500">View Profile</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="py-2">
+                        <button onclick="logout()" class="w-full text-left px-4 py-2 text-gray-600 hover:text-red-600 hover:bg-red-50 font-medium transition-colors duration-150">
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -155,15 +194,9 @@
 
             <!-- Route Post 1 -->
             <div class="bg-white p-6 rounded-2xl shadow-xl card-shadow">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-2xl font-bold text-red-600">The Sunset Coastal Loop</h3>
-                        <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">Runner_Jane_88</span> • 2 hours ago</p>
-                    </div>
-                    <div class="text-yellow-500 font-bold text-xl flex items-center">
-                        <span class="mr-1">★ 4.8</span>
-                        <span class="text-sm text-gray-400 ml-1">(120 Ratings)</span>
-                    </div>
+                <div class="mb-4">
+                    <h3 class="text-2xl font-bold text-red-600">The Sunset Coastal Loop</h3>
+                    <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">Runner_Jane_88</span> • 2 hours ago</p>
                 </div>
                 
                 <p class="text-gray-700 mb-4 leading-relaxed">
@@ -183,30 +216,16 @@
                     </div>
                 </div>
 
-                <div class="flex space-x-4">
-                    <button class="flex items-center text-red-600 hover:text-red-700 font-medium">
-                        <span class="text-xl mr-1">❤️</span> 1.5K Likes
-                    </button>
-                    <button class="flex items-center text-gray-500 hover:text-red-600 font-medium">
-                        <span class="text-xl mr-1">💬</span> 45 Comments
-                    </button>
-                    <button class="flex items-center text-gray-500 hover:text-red-600 font-medium">
-                        <span class="text-xl mr-1">📸</span> View Photos
-                    </button>
+                <div class="flex">
+                    <a href="#" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700">View Route on Map</a>
                 </div>
             </div>
 
             <!-- Route Post 2 -->
             <div class="bg-white p-6 rounded-2xl shadow-xl card-shadow">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-2xl font-bold text-red-600">Central Park Mid-Day Mixer</h3>
-                        <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">MarathonMike</span> • 1 day ago</p>
-                    </div>
-                    <div class="text-yellow-500 font-bold text-xl flex items-center">
-                        <span class="mr-1">★ 4.1</span>
-                        <span class="text-sm text-gray-400 ml-1">(52 Ratings)</span>
-                    </div>
+                <div class="mb-4">
+                    <h3 class="text-2xl font-bold text-red-600">Central Park Mid-Day Mixer</h3>
+                    <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">MarathonMike</span> • 1 day ago</p>
                 </div>
                 
                 <p class="text-gray-700 mb-4 leading-relaxed">
@@ -226,16 +245,8 @@
                     </div>
                 </div>
 
-                <div class="flex space-x-4">
-                    <button class="flex items-center text-red-600 hover:text-red-700 font-medium">
-                        <span class="text-xl mr-1">❤️</span> 890 Likes
-                    </button>
-                    <button class="flex items-center text-gray-500 hover:text-red-600 font-medium">
-                        <span class="text-xl mr-1">💬</span> 20 Comments
-                    </button>
-                    <button class="flex items-center text-gray-500 hover:text-red-600 font-medium">
-                        <span class="text-xl mr-1">📸</span> View Photos
-                    </button>
+                <div class="flex">
+                    <a href="#" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700">View Route on Map</a>
                 </div>
             </div>
             
@@ -250,13 +261,75 @@
     </footer>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+        function getInitials(name) {
+            return name
+                .split(' ')
+                .map(part => part[0])
+                .join('')
+                .toUpperCase();
+        }
+
+        function logout() {
+            localStorage.removeItem('currentUser');
+            updateAuthUI();
+            // Close mobile menu if open
+            document.getElementById('mobile-menu').classList.add('hidden');
+        }
+
+        function updateAuthUI() {
+            const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+            const authButtons = document.getElementById('authButtons');
+            const userProfile = document.getElementById('userProfile');
+            const mobileAuthButtons = document.getElementById('mobileAuthButtons');
+            const mobileUserProfile = document.getElementById('mobileUserProfile');
+            
+            if (currentUser) {
+                // Desktop
+                authButtons.classList.add('hidden');
+                userProfile.classList.remove('hidden');
+                userProfile.classList.add('flex');
+                document.getElementById('username').textContent = currentUser.username;
+                document.getElementById('userInitial').textContent = getInitials(currentUser.username);
+                
+                // Mobile
+                mobileAuthButtons.classList.add('hidden');
+                mobileUserProfile.classList.remove('hidden');
+                document.getElementById('mobileUsername').textContent = currentUser.username;
+                document.getElementById('mobileUserInitial').textContent = getInitials(currentUser.username);
+            } else {
+                // Desktop
+                authButtons.classList.remove('hidden');
+                userProfile.classList.add('hidden');
+                userProfile.classList.remove('flex');
+                
+                // Mobile
+                mobileAuthButtons.classList.remove('hidden');
+                mobileUserProfile.classList.add('hidden');
+            }
+        }
+
+        // Mobile menu handler with improved animation
+        function setupMobileMenu() {
             const mobileMenuBtn = document.getElementById('mobile-menu-btn');
             const mobileMenu = document.getElementById('mobile-menu');
-
+            
             mobileMenuBtn.addEventListener('click', () => {
+                const isExpanded = mobileMenuBtn.getAttribute('aria-expanded') === 'true';
+                
+                mobileMenuBtn.setAttribute('aria-expanded', !isExpanded);
                 mobileMenu.classList.toggle('hidden');
+                
+                // Update aria-label based on state
+                mobileMenuBtn.setAttribute('aria-label', 
+                    isExpanded ? 'Open main menu' : 'Close main menu'
+                );
             });
+        }
+
+        // Initialize everything when the DOM is ready
+        document.addEventListener('DOMContentLoaded', () => {
+            setupMobileMenu();
+            updateAuthUI();
         });
     </script>
 </body>
