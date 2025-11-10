@@ -192,62 +192,9 @@
                 Featured Community Routes
             </h2>
 
-            <!-- Route Post 1 -->
-            <div class="bg-white p-6 rounded-2xl shadow-xl card-shadow">
-                <div class="mb-4">
-                    <h3 class="text-2xl font-bold text-red-600">The Sunset Coastal Loop</h3>
-                    <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">Runner_Jane_88</span> • 2 hours ago</p>
-                </div>
-                
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    "Absolutely stunning 10k route! The last two kilometers along the water at golden hour are unbeatable. A little hilly around the start, but nothing a seasoned runner can't handle. Highly recommend saving energy for the final sprint!"
-                </p>
-
-                <!-- Placeholder Images/Stats -->
-                <div class="flex flex-wrap gap-4 mb-4">
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        Distance: 10.2 km
-                    </div>
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        Elevation Gain: 150m
-                    </div>
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        #routegoals #coastalrun
-                    </div>
-                </div>
-
-                <div class="flex">
-                    <a href="#" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700">View Route on Map</a>
-                </div>
-            </div>
-
-            <!-- Route Post 2 -->
-            <div class="bg-white p-6 rounded-2xl shadow-xl card-shadow">
-                <div class="mb-4">
-                    <h3 class="text-2xl font-bold text-red-600">Central Park Mid-Day Mixer</h3>
-                    <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">MarathonMike</span> • 1 day ago</p>
-                </div>
-                
-                <p class="text-gray-700 mb-4 leading-relaxed">
-                    "A flat, fast 5k through the park's eastern side. Great for speed work. Crowded around noon, but the energy is fantastic! Perfect for meeting up with running buddies. Remember to stay hydrated!"
-                </p>
-
-                <!-- Placeholder Images/Stats -->
-                <div class="flex flex-wrap gap-4 mb-4">
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        Distance: 5.0 km
-                    </div>
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        Difficulty: Easy
-                    </div>
-                    <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">
-                        Surface: Paved
-                    </div>
-                </div>
-
-                <div class="flex">
-                    <a href="#" class="bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700">View Route on Map</a>
-                </div>
+            <!-- Posts feed (populated from posts.php or localStorage) -->
+            <div id="posts-feed" class="space-y-6">
+              <!-- posts injected here -->
             </div>
             
         </div>
@@ -331,6 +278,84 @@
             setupMobileMenu();
             updateAuthUI();
         });
+        
+        // POSTS FEED: load posts from posts.php (fallback to localStorage) and render into feed
+        async function loadPosts() {
+            const feed = document.getElementById('posts-feed');
+            if (!feed) return;
+
+            let posts = null;
+            try {
+                const res = await fetch('posts.php');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success && Array.isArray(data.posts)) posts = data.posts;
+                }
+            } catch (err) {
+                console.warn('posts.php not reachable, will use localStorage fallback', err);
+            }
+
+            if (!posts) {
+                posts = JSON.parse(localStorage.getItem('posts') || '[]');
+            }
+
+            // clear feed
+            feed.innerHTML = '';
+
+            if (!posts || posts.length === 0) {
+                feed.innerHTML = `<div class="bg-white p-6 rounded-2xl shadow-lg text-gray-500">No community posts yet. Be the first to post a route!</div>`;
+                return;
+            }
+
+            for (const p of posts) {
+                // handle geojson possibly stored as JSON string
+                let geo = p.geojson;
+                try { if (typeof geo === 'string') geo = JSON.parse(geo); } catch(e) { /* keep as-is */ }
+
+                const created = p.createdAt ? new Date(p.createdAt) : null;
+                const timeLabel = created ? created.toLocaleString() : '';
+
+                const item = document.createElement('div');
+                item.className = 'bg-white p-6 rounded-2xl shadow-xl card-shadow';
+                item.innerHTML = `
+                    <div class="mb-2">
+                      <h3 class="text-2xl font-bold text-red-600">${escapeHtml(p.title || 'Untitled')}</h3>
+                      <p class="text-gray-500 text-sm">Posted by <span class="font-semibold text-gray-700">${escapeHtml(p.username || 'Anonymous')}</span>${timeLabel ? ' • ' + escapeHtml(timeLabel) : ''}</p>
+                    </div>
+                    <p class="text-gray-700 mb-4 leading-relaxed">${escapeHtml(p.description || '')}</p>
+                    <div class="flex flex-wrap gap-4 items-center mb-3">
+                      <div class="p-3 bg-red-50 rounded-lg text-red-700 font-medium text-sm">Distance: ${Number(p.distanceKm || 0).toFixed(2)} km</div>
+                    </div>
+                    <div class="flex">
+                      <button class="view-route-btn bg-red-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-red-700" data-id="${escapeHtml(String(p.id || ''))}">View Route on Map</button>
+                    </div>
+                `;
+
+                // attach handler
+                item.querySelector('.view-route-btn').addEventListener('click', () => {
+                    const iframe = document.querySelector('iframe[title="ReDa Map"]');
+                    if (!iframe) { alert('Map iframe not found'); return; }
+                    try {
+                        iframe.contentWindow.postMessage({ type: 'loadRoute', post: { id: p.id, username: p.username, title: p.title, description: p.description, distanceKm: p.distanceKm, geojson: geo } }, '*');
+                        // optionally navigate user to map iframe by focusing or scrolling
+                        iframe.scrollIntoView({ behavior: 'smooth' });
+                    } catch (err) {
+                        console.error('Failed to postMessage to map iframe', err);
+                        alert('Unable to load route into map. Is the map loaded?');
+                    }
+                });
+
+                feed.appendChild(item);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>"']/g, function(m) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+        }
+
+        // Load posts once DOM is ready
+        document.addEventListener('DOMContentLoaded', () => { loadPosts(); });
     </script>
 </body>
 </html>

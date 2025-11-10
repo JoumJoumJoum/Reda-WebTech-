@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ReDa Map — Automatic Start/End</title>
+  <title>ReDa Map — Pretty Start/End Markers</title>
 
   <!-- Tailwind & font -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,17 +16,77 @@
   <style>
     html,body { height:100%; margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial; }
     #map { width:100%; height:100vh; }
-    .map-topbar { position:absolute; left:12px; top:12px; z-index:1000; }
-    .map-controls { position:absolute; right:12px; top:12px; z-index:1000; display:flex; flex-direction:column; gap:8px; }
-    .info-box { position:absolute; left:12px; bottom:12px; z-index:999; background:rgba(255,255,255,0.95); padding:12px 14px; border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,0.08); font-size:13px; max-width:320px; }
-    .btn { background:#dc2626; color:white; padding:10px 14px; border-radius:8px; font-weight:600; border:none; cursor:pointer; font-size:13px; transition:all 0.12s ease; }
-    .btn.gray { background:#f3f4f6; color:#111827; }
-    .btn:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(220,38,38,0.3); }
-    @media(max-width:640px){
-      .map-topbar{left:8px;top:8px;}
-      .map-controls{right:8px;top:8px;}
-      .btn{padding:8px 12px;font-size:12px;}
-      .info-box{left:8px;bottom:8px;max-width:calc(100vw - 32px);font-size:12px;}
+
+    /* Top controls */
+    .map-topbar { position:absolute; left:12px; top:12px; z-index:1200; }
+    .map-topbar .p-3 { display:flex; gap:8px; align-items:center; background:#fff; padding:10px; border-radius:12px; box-shadow:0 10px 30px rgba(2,6,23,0.06); }
+
+    /* Right panel */
+    .map-controls { position:absolute; right:12px; top:12px; z-index:1200; }
+    .panel { background:#fff; padding:12px; border-radius:12px; box-shadow:0 10px 30px rgba(2,6,23,0.06); font-size:13px; min-width:170px; }
+
+    /* Route banner */
+    .route-banner {
+      position:absolute;
+      left:50%;
+      transform:translateX(-50%);
+      top:16px;
+      z-index:1400;
+      background:linear-gradient(90deg, rgba(255,255,255,0.98), rgba(255,255,255,0.98));
+      padding:8px 16px;
+      border-radius:999px;
+      font-weight:700;
+      box-shadow:0 10px 30px rgba(2,6,23,0.08);
+      display:none;
+      max-width:85%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    /* Marker label + pin */
+    .marker-wrap { display:flex; flex-direction:column; align-items:center; pointer-events:auto; }
+    .marker-label {
+      display:inline-block;
+      max-width:140px;
+      padding:6px 10px;
+      border-radius:999px;
+      font-weight:700;
+      font-size:13px;
+      line-height:1;
+      color:#fff;
+      box-shadow:0 6px 18px rgba(2,6,23,0.12);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      text-align:center;
+      cursor:default;
+    }
+    .marker-label.start {
+      background: linear-gradient(180deg,#34d399,#059669);
+    }
+    .marker-label.end {
+      background: linear-gradient(180deg,#fb7185,#ef4444);
+    }
+    .marker-pin {
+      width:12px;
+      height:12px;
+      background: #111827;
+      border-radius:50%;
+      margin-top:6px;
+      box-shadow:0 6px 14px rgba(2,6,23,0.18);
+      transform:translateY(-2px);
+    }
+
+    /* Routed line style adjustment (higher z-index) */
+    .leaflet-overlay-pane .routed-line { z-index: 600 !important; }
+
+    /* Responsive */
+    @media (max-width:640px) {
+      .map-topbar { left:8px; top:8px; }
+      .map-controls { right:8px; top:8px; }
+      .marker-label { max-width:110px; font-size:12px; padding:5px 8px; }
+      .route-banner { top:64px; font-size:14px; }
     }
   </style>
 </head>
@@ -34,37 +94,36 @@
   <div id="map"></div>
 
   <div class="map-topbar">
-    <div class="p-3 bg-white rounded-xl shadow-md flex gap-2 items-center">
-      <button id="locate-btn" class="btn gray">📍 My Location</button>
-      <button id="start-route-btn" class="btn">✏️ Draw Route</button>
-      <button id="clear-btn" class="btn gray">🗑️ Clear</button>
+    <div class="p-3">
+      <button id="locate-btn" class="btn gray" style="padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111827;border:0;cursor:pointer;">📍 My Location</button>
+      <button id="start-route-btn" class="btn" style="padding:8px 12px;border-radius:8px;background:#ef4444;color:#fff;border:0;cursor:pointer;">✏️ Draw Route</button>
+      <button id="clear-btn" class="btn gray" style="padding:8px 12px;border-radius:8px;background:#f3f4f6;color:#111827;border:0;cursor:pointer;">🗑️ Clear</button>
+      <button id="post-route-btn" class="btn" style="padding:8px 12px;border-radius:8px;background:#dc2626;color:#fff;border:0;cursor:pointer;" disabled>📤 Post Route</button>
     </div>
   </div>
 
+  <div class="route-banner" id="route-banner" aria-live="polite"></div>
+
   <div class="map-controls">
-    <div class="p-3 bg-white rounded-xl shadow-md text-sm">
-      <div><strong>📏 Distance</strong></div>
-      <div class="text-red-600 font-bold text-lg" id="distance-val">0.00 km</div>
-      <hr class="my-2">
-      <div style="font-size:12px;">
+    <div class="panel">
+      <div style="font-size:12px;color:#374151;font-weight:700;">📏 Distance</div>
+      <div id="distance-val" style="color:#dc2626;font-weight:800;font-size:18px;margin-top:6px;">0.00 km</div>
+      <hr style="margin:8px 0;border-color:#f3f4f6;">
+      <div style="font-size:12px;color:#374151;">
         <div><strong>Start:</strong> <span id="start-name">—</span></div>
-        <div><strong>End:</strong> <span id="end-name">—</span></div>
+        <div style="margin-top:6px;"><strong>End:</strong> <span id="end-name">—</span></div>
       </div>
     </div>
   </div>
 
-  <div class="info-box">
+  <div style="position:absolute; left:12px; bottom:12px; z-index:1200; background: rgba(255,255,255,0.98); padding:10px 12px; border-radius:10px; box-shadow:0 10px 30px rgba(2,6,23,0.06); font-size:12px;">
     <strong>🗺️ Quick Tips:</strong>
-    <ul class="mt-2 space-y-1 text-xs">
-      <li>🔍 Use the search box (top-left) to find locations</li>
-      <li>✏️ Click <b>Draw Route</b> then click on the map to trace your path</li>
-      <li>📌 Double-click or press Enter to finish</li>
-      <li>🏁 Start and End points are auto-named from nearby landmarks</li>
-      <li>⌨️ Press R to toggle Draw mode</li>
-    </ul>
+    <div style="margin-top:6px;">
+      Draw with the tool, finish to compute a proper routed path between the first and last points. Names come from nearby landmarks.
+    </div>
   </div>
 
-  <!-- Scripts -->
+  <!-- libs -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"></script>
@@ -72,101 +131,390 @@
 
   <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const map = L.map('map').setView([20.5937,78.9629],5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
-    L.Control.geocoder({defaultMarkGeocode:true}).addTo(map);
+    if (typeof window.L === 'undefined') { alert('Leaflet not loaded — check console.'); return; }
 
+    // Map init
+    const map = L.map('map').setView([20.5937,78.9629], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+    L.Control.geocoder({ defaultMarkGeocode: true }).addTo(map);
+
+    // Panes: make routed line sit above default vector layers
+    map.createPane('routedPane');
+    map.getPane('routedPane').style.zIndex = 600;
+
+    // Feature groups
     const drawnItems = new L.FeatureGroup().addTo(map);
-    new L.Control.Draw({draw:false,edit:{featureGroup:drawnItems}}).addTo(map);
+    const routedLayerGroup = new L.FeatureGroup().addTo(map);
 
-    const startMarker=L.marker([0,0],{icon:L.divIcon({className:'',html:'<div style="background:#10b981;color:#fff;padding:6px 8px;border-radius:8px;font-weight:700;">Start</div>'})});
-    const endMarker=L.marker([0,0],{icon:L.divIcon({className:'',html:'<div style="background:#ef4444;color:#fff;padding:6px 8px;border-radius:8px;font-weight:700;">End</div>'})});
+    new L.Control.Draw({ draw: false, edit: { featureGroup: drawnItems } }).addTo(map);
 
-    const startNameEl=document.getElementById('start-name');
-    const endNameEl=document.getElementById('end-name');
-    const distEl=document.getElementById('distance-val');
-
-    async function reverseName(lat,lon){
-      const url=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&namedetails=1`;
-      try{
-        const r=await fetch(url,{headers:{'Accept':'application/json'}});
-        const j=await r.json();
-        if(j.namedetails?.name) return j.namedetails.name;
-        if(j.name) return j.name;
-        if(j.display_name) return j.display_name.split(',')[0];
-        const a=j.address||{};
-        return a.road||a.neighbourhood||a.city||`${lat.toFixed(4)},${lon.toFixed(4)}`;
-      }catch(e){console.warn('Reverse fail',e);return `${lat.toFixed(4)},${lon.toFixed(4)}`;}
+    // Pretty marker divIcon generator
+    function makeLabelIcon(text, type='start') {
+      // escape text for HTML attribute usage (tooltip)
+      const esc = text ? text.replace(/"/g, '&quot;') : '';
+      // HTML structure: label + pin - label has ellipsis & tooltip
+      const html = `
+        <div class="marker-wrap" title="${esc}">
+          <div class="marker-label ${type === 'start' ? 'start' : 'end'}">${text}</div>
+          <div class="marker-pin" aria-hidden="true"></div>
+        </div>`;
+      // anchor so pin touches the latlng point
+      return L.divIcon({
+        className: '',
+        html,
+        iconSize: null,
+        iconAnchor: [0, 12] // x,y - tune so pin sits on the coords
+      });
     }
 
-    function updateDistance(){
-      let km=0;
-      drawnItems.eachLayer(l=>{
-        if(l instanceof L.Polyline && !(l instanceof L.Polygon)){
-          const coords=l.getLatLngs().map(p=>[p.lng,p.lat]);
-          if(coords.length>=2){ km+=turf.length(turf.lineString(coords),{units:'kilometers'}); }
+    // markers (start/end)
+    let startMarker = null;
+    let endMarker = null;
+
+    const startNameEl = document.getElementById('start-name');
+    const endNameEl = document.getElementById('end-name');
+    const distEl = document.getElementById('distance-val');
+    const routeBanner = document.getElementById('route-banner');
+
+    // reverse geocode (Nominatim)
+    async function reverseName(lat, lon) {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&namedetails=1`;
+      try {
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' }});
+        if (!res.ok) throw new Error('Nominatim ' + res.status);
+        const json = await res.json();
+        if (json.namedetails?.name) return json.namedetails.name;
+        if (json.name) return json.name;
+        if (json.display_name) return json.display_name.split(',')[0];
+        const a = json.address || {};
+        return a.road || a.neighbourhood || a.suburb || a.city || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      } catch (err) {
+        console.warn('Reverse geocode failed', err);
+        return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      }
+    }
+
+    // OSRM routing
+    async function osrmRoute(start, end) {
+      const s = `${start.lng},${start.lat}`;
+      const e = `${end.lng},${end.lat}`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${s};${e}?overview=full&geometries=geojson&alternatives=false&steps=false`;
+      try {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('OSRM ' + r.status);
+        const json = await r.json();
+        if (json.code !== 'Ok' || !json.routes || !json.routes.length) throw new Error('OSRM no route');
+        return json.routes[0];
+      } catch (err) {
+        console.warn('OSRM routing failed', err);
+        return null;
+      }
+    }
+
+    // update distance (prefer routed layer)
+    function updateDistanceDisplay() {
+      let km = 0;
+      let used = false;
+      routedLayerGroup.eachLayer(layer => {
+        if (layer instanceof L.Polyline) {
+          const coords = layer.getLatLngs().map(p => [p.lng, p.lat]);
+          if (coords.length >= 2 && typeof turf !== 'undefined') {
+            km += turf.length(turf.lineString(coords), { units: 'kilometers' });
+            used = true;
+          }
         }
       });
-      distEl.textContent=km.toFixed(2)+' km';
+      if (!used) {
+        drawnItems.eachLayer(layer => {
+          if (layer instanceof L.Polyline) {
+            const coords = layer.getLatLngs().map(p => [p.lng, p.lat]);
+            if (coords.length >= 2 && typeof turf !== 'undefined') {
+              km += turf.length(turf.lineString(coords), { units: 'kilometers' });
+            }
+          }
+        });
+      }
+      distEl.textContent = km.toFixed(2) + ' km';
+      window.currentRouteDistance = km;
     }
 
-    // draw route toggle
-    const drawBtn=document.getElementById('start-route-btn');
-    let drawing=false,handler=null;
-    drawBtn.onclick=()=>{
-      if(!drawing){
-        handler=new L.Draw.Polyline(map,{shapeOptions:{color:'#dc2626',weight:4}}).enable();
-        drawBtn.textContent='⏹️ Stop Drawing';
-        drawing=true;
-      }else{
-        if(handler?.disable) handler.disable();
-        drawBtn.textContent='✏️ Draw Route';
-        drawing=false;
-      }
-    };
+    // show banner
+    function showRouteTitle(sLabel, eLabel) {
+      const title = `${sLabel} → ${eLabel}`;
+      routeBanner.textContent = title;
+      routeBanner.style.display = 'block';
+      clearTimeout(routeBanner._hideTO);
+      routeBanner._hideTO = setTimeout(() => routeBanner.style.display = 'none', 8000);
+    }
 
-    map.on(L.Draw.Event.CREATED,async e=>{
-      const layer=e.layer;
+    // Draw created event - compute start/end, reverse geocode, OSRM route
+    map.on(L.Draw.Event.CREATED, async (e) => {
+      const layer = e.layer;
       drawnItems.addLayer(layer);
-      updateDistance();
-      const pts=layer.getLatLngs();
-      if(pts.length>=2){
-        const s=pts[0],f=pts[pts.length-1];
-        startMarker.setLatLng(s).addTo(map);
-        endMarker.setLatLng(f).addTo(map);
-        startNameEl.textContent='Looking up...';
-        endNameEl.textContent='Looking up...';
-        const [sName,fName]=await Promise.all([reverseName(s.lat,s.lng),reverseName(f.lat,f.lng)]);
-        startNameEl.textContent=sName;
-        endNameEl.textContent=fName;
-        startMarker.bindPopup(`<b>Start</b><br>${sName}`);
-        endMarker.bindPopup(`<b>End</b><br>${fName}`);
+      updateDistanceDisplay();
+
+      // get first and last points for naming/routing
+      let latlngs = [];
+      if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) latlngs = layer.getLatLngs();
+
+      if (latlngs.length >= 2) {
+        const first = latlngs[0];
+        const last = latlngs[latlngs.length - 1];
+
+        // temporary UI
+        startNameEl.textContent = 'Looking up...';
+        endNameEl.textContent = 'Looking up...';
+
+        // reverse names in parallel
+        const [sName, eName] = await Promise.all([reverseName(first.lat, first.lng), reverseName(last.lat, last.lng)]);
+
+        // set pretty markers (use divIcon)
+        if (startMarker) { try { map.removeLayer(startMarker); } catch(_){} }
+        startMarker = L.marker(first, { icon: makeLabelIcon(sName, 'start') }).addTo(map);
+        startMarker.bindPopup(`<strong>Start</strong><br>${sName}`);
+
+        if (endMarker) { try { map.removeLayer(endMarker); } catch(_){} }
+        endMarker = L.marker(last, { icon: makeLabelIcon(eName, 'end') }).addTo(map);
+        endMarker.bindPopup(`<strong>End</strong><br>${eName}`);
+
+        startNameEl.textContent = sName;
+        endNameEl.textContent = eName;
+
+        // attempt routing
+        const route = await osrmRoute(first, last);
+
+        if (route && route.geometry) {
+          // clear previous routed
+          routedLayerGroup.clearLayers();
+          const geo = L.geoJSON(route.geometry, {
+            style: { color: '#111827', weight: 6, opacity: 0.95, className: 'routed-line' },
+            pane: 'routedPane'
+          }).addTo(routedLayerGroup);
+
+          try { map.fitBounds(geo.getBounds(), { padding: [40, 40] }); } catch (ignore) {}
+
+          // show OSRM distance if provided
+          const km = (route.distance || 0) / 1000;
+          distEl.textContent = km.toFixed(2) + ' km';
+          window.currentRouteGeoJSON = route.geometry;
+
+          showRouteTitle(sName, eName);
+        } else {
+          // fallback: use drawn geometry
+          updateDistanceDisplay();
+          showRouteTitle(sName, eName + ' (approx.)');
+        }
       }
-      if(drawing){ handler?.disable(); drawBtn.textContent='✏️ Draw Route'; drawing=false; }
+      // ensure draw UI toggles reset (if UI handler exists)
+      if (activeDrawHandler && activeDrawHandler.disable) activeDrawHandler.disable();
+      drawing = false;
+      drawBtn.textContent = '✏️ Draw Route';
     });
 
-    map.on(L.Draw.Event.EDITED,updateDistance);
-    map.on(L.Draw.Event.DELETED,updateDistance);
+    map.on(L.Draw.Event.EDITED, updateDistanceDisplay);
+    map.on(L.Draw.Event.DELETED, () => {
+      routedLayerGroup.clearLayers();
+      updateDistanceDisplay();
+    });
 
-    document.getElementById('locate-btn').onclick=()=>{
-      if(!navigator.geolocation){alert('Geolocation not supported');return;}
-      navigator.geolocation.getCurrentPosition(p=>{
-        map.setView([p.coords.latitude,p.coords.longitude],14);
-        L.circle([p.coords.latitude,p.coords.longitude],{radius:p.coords.accuracy/2,color:'#3b82f6',fillOpacity:0.15}).addTo(map);
-      },err=>alert('Location error: '+err.message));
-    };
+    // draw toggle mechanics
+    const drawBtn = document.getElementById('start-route-btn');
+    let drawing = false;
+    let activeDrawHandler = null;
+    drawBtn.addEventListener('click', () => {
+      if (!drawing) {
+        activeDrawHandler = new L.Draw.Polyline(map, { shapeOptions: { color: '#dc2626', weight: 4 } });
+        activeDrawHandler.enable();
+        drawBtn.textContent = '⏹️ Stop Drawing';
+        drawing = true;
+      } else {
+        if (activeDrawHandler && activeDrawHandler.disable) activeDrawHandler.disable();
+        drawBtn.textContent = '✏️ Draw Route';
+        drawing = false;
+      }
+    });
 
-    document.getElementById('clear-btn').onclick=()=>{
-      if(!drawnItems.getLayers().length){alert('Nothing to clear.');return;}
-      if(!confirm('Clear all routes and markers?'))return;
-      drawnItems.clearLayers();updateDistance();
-      map.removeLayer(startMarker);map.removeLayer(endMarker);
-      startNameEl.textContent=endNameEl.textContent='—';
-    };
+    // locate
+    document.getElementById('locate-btn').addEventListener('click', () => {
+      if (!navigator.geolocation) { alert('Geolocation not supported'); return; }
+      navigator.geolocation.getCurrentPosition(pos => {
+        map.setView([pos.coords.latitude, pos.coords.longitude], 14);
+        L.circle([pos.coords.latitude, pos.coords.longitude], { radius: Math.max(30, pos.coords.accuracy / 2), color: '#3b82f6', fillOpacity: 0.12 }).addTo(map);
+      }, err => alert('Location error: ' + err.message));
+    });
 
-    // center on user at load
-    if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>map.setView([p.coords.latitude,p.coords.longitude],13));}
-    document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='r'&&!e.ctrlKey&&!e.metaKey)drawBtn.click();});
+    // clear
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      const hasData = drawnItems.getLayers().length > 0 || routedLayerGroup.getLayers().length > 0 || startMarker || endMarker;
+      if (!hasData) { alert('Nothing to clear.'); return; }
+      if (!confirm('Clear all routes and markers?')) return;
+      drawnItems.clearLayers();
+      routedLayerGroup.clearLayers();
+      try { if (startMarker) map.removeLayer(startMarker); } catch(e){}
+      try { if (endMarker) map.removeLayer(endMarker); } catch(e){}
+      startNameEl.textContent = endNameEl.textContent = '—';
+      distEl.textContent = '0.00 km';
+      routeBanner.style.display = 'none';
+      window.currentRouteGeoJSON = null;
+    });
+
+    // try center on user at load
+    if (navigator.geolocation) navigator.geolocation.getCurrentPosition(p => map.setView([p.coords.latitude, p.coords.longitude], 13), () => {});
+
+  // keyboard shortcuts removed (disabled for prototype)
+
+    // expose debug
+    window.reDaMap = { map, drawnItems, routedLayerGroup };
+
+    console.log('Pretty markers map ready.');
+
+    // Listen for route load messages from parent (main page)
+    window.addEventListener('message', (evt) => {
+      try {
+        const msg = evt.data || {};
+        if (msg && msg.type === 'loadRoute' && msg.post) {
+          const p = msg.post;
+          let geo = p.geojson || null;
+          if (!geo) { alert('No route geometry provided'); return; }
+          try { if (typeof geo === 'string') geo = JSON.parse(geo); } catch(e) { /* ignore */ }
+
+          // clear existing
+          drawnItems.clearLayers(); routedLayerGroup.clearLayers();
+          if (startMarker) try{map.removeLayer(startMarker);}catch{}; if (endMarker) try{map.removeLayer(endMarker);}catch{};
+
+          // If geo is a FeatureCollection, find first LineString/MultiLineString
+          let geom = geo;
+          if (geo.type === 'FeatureCollection' && Array.isArray(geo.features) && geo.features.length > 0) {
+            const f = geo.features.find(ff => ff.geometry && (ff.geometry.type === 'LineString' || ff.geometry.type === 'MultiLineString')) || geo.features[0];
+            geom = f.geometry || f;
+          }
+
+          // add geojson layer
+          const layer = L.geoJSON(geom, { style: { color: '#111827', weight: 6, opacity: 0.95 }, pane: 'routedPane' }).addTo(routedLayerGroup);
+          try { map.fitBounds(layer.getBounds(), { padding: [40,40] }); } catch(_) {}
+
+          // compute start/end and add markers if possible
+          let coords = [];
+          if (geom.type === 'LineString') coords = geom.coordinates;
+          else if (geom.type === 'MultiLineString') coords = geom.coordinates[0] || [];
+          else if (geom.type === 'Feature' && geom.geometry) {
+            const g = geom.geometry;
+            if (g.type === 'LineString') coords = g.coordinates;
+            else if (g.type === 'MultiLineString') coords = g.coordinates[0] || [];
+          }
+
+          if (coords && coords.length >= 2) {
+            const first = coords[0];
+            const last = coords[coords.length - 1];
+            const fLatLng = L.latLng(first[1], first[0]);
+            const lLatLng = L.latLng(last[1], last[0]);
+            startMarker = L.marker(fLatLng, { icon: makeLabelIcon(p.title ? (p.title + ' (start)') : 'Start', 'start') }).addTo(map);
+            endMarker = L.marker(lLatLng, { icon: makeLabelIcon(p.title ? (p.title + ' (end)') : 'End', 'end') }).addTo(map);
+            startMarker.bindPopup(`<strong>Start</strong><br>${escapeHtml(p.title || 'Start')}`);
+            endMarker.bindPopup(`<strong>End</strong><br>${escapeHtml(p.title || 'End')}`);
+            // compute distance with turf if available
+            if (typeof turf !== 'undefined') {
+              const line = turf.lineString(coords.map(c => [c[0], c[1]]));
+              const km = turf.length(line, { units: 'kilometers' });
+              distEl.textContent = km.toFixed(2) + ' km';
+              window.currentRouteDistance = km;
+            }
+            startNameEl.textContent = p.username || 'Start';
+            endNameEl.textContent = p.title || 'End';
+            showRouteTitle(p.username || 'User', p.title || 'Route');
+            setTimeout(() => { routeBanner.style.display = 'block'; }, 50);
+          }
+        }
+      } catch (err) { console.error('message handler error', err); }
+    });
+
+    function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); }); }
+
+    // Post route modal and posting logic
+    const postBtn = document.getElementById('post-route-btn');
+
+    function setPostButtonState() {
+      const hasRoute = (window.currentRouteGeoJSON || (drawnItems.getLayers().length > 0));
+      postBtn.disabled = !hasRoute;
+      postBtn.style.opacity = hasRoute ? '1' : '0.6';
+    }
+
+    // Call this whenever route geometry or distance updates
+    const originalUpdateDistanceDisplay = updateDistanceDisplay;
+    updateDistanceDisplay = function() { originalUpdateDistanceDisplay(); setPostButtonState(); };
+
+    // Create modal DOM
+    const modal = document.createElement('div');
+    modal.id = 'post-modal';
+    modal.style = 'position:fixed;left:0;top:0;width:100%;height:100%;display:none;align-items:center;justify-content:center;z-index:2000;';
+    modal.innerHTML = `
+      <div style="background:rgba(0,0,0,0.5);position:absolute;inset:0;"></div>
+      <div style="position:relative;max-width:680px;width:90%;background:#fff;border-radius:12px;padding:20px;box-shadow:0 20px 50px rgba(2,6,23,0.3);z-index:2001;">
+        <h3 style="font-size:18px;margin-bottom:8px;color:#111827;font-weight:800;">Create Route Post</h3>
+        <div style="margin-bottom:8px;font-size:13px;color:#374151;">Distance: <span id="modal-distance">0.00 km</span></div>
+        <div style="margin-bottom:8px;"><input id="post-title" placeholder="Title" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;" /></div>
+        <div style="margin-bottom:12px;"><textarea id="post-desc" placeholder="Write a short description..." rows="4" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;"></textarea></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;"><button id="post-cancel" style="background:#f3f4f6;border-radius:8px;padding:8px 12px;border:0;">Cancel</button><button id="post-submit" style="background:#dc2626;color:#fff;border-radius:8px;padding:8px 12px;border:0;">Post</button></div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    function openPostModal() {
+      document.getElementById('modal-distance').textContent = (window.currentRouteDistance || 0).toFixed(2) + ' km';
+      document.getElementById('post-title').value = '';
+      document.getElementById('post-desc').value = '';
+      modal.style.display = 'flex';
+    }
+    function closePostModal() { modal.style.display = 'none'; }
+
+    postBtn.addEventListener('click', () => {
+      setPostButtonState();
+      if (postBtn.disabled) return;
+      openPostModal();
+    });
+
+    document.getElementById('post-cancel').addEventListener('click', closePostModal);
+
+    document.getElementById('post-submit').addEventListener('click', async () => {
+      const title = document.getElementById('post-title').value.trim();
+      const desc = document.getElementById('post-desc').value.trim();
+      const distance = window.currentRouteDistance || 0;
+      const geo = window.currentRouteGeoJSON || drawnItems.toGeoJSON();
+
+      if (!title) { alert('Please add a title for your post.'); return; }
+
+      // username from localStorage
+      let username = 'Anonymous';
+      try { const u = JSON.parse(localStorage.getItem('currentUser') || 'null'); if (u && u.username) username = u.username; } catch(e){}
+
+      const payload = { action: 'create', username, title, description: desc, distanceKm: distance, geojson: geo };
+
+      try {
+        const res = await fetch('posts.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success) {
+            alert('Post created successfully!');
+            closePostModal();
+            // optionally clear route
+            drawnItems.clearLayers(); routedLayerGroup.clearLayers(); if (startMarker) try{map.removeLayer(startMarker);}catch{}; if (endMarker) try{map.removeLayer(endMarker);}catch{};
+            startNameEl.textContent = endNameEl.textContent = '—'; distEl.textContent = '0.00 km'; routeBanner.style.display='none'; window.currentRouteGeoJSON = null; setPostButtonState();
+            return;
+          }
+        }
+        throw new Error('Server error');
+      } catch (err) {
+        console.warn('posts.php not reachable, saving post to localStorage fallback', err);
+        // fallback: save to localStorage
+        const posts = JSON.parse(localStorage.getItem('posts') || '[]');
+        posts.push({ id: Date.now(), username, title, description: desc, distanceKm: distance, geojson: geo, createdAt: new Date().toISOString() });
+        localStorage.setItem('posts', JSON.stringify(posts));
+        alert('Post saved locally (posts.php unreachable).');
+        closePostModal();
+      }
+    });
+
+    // initial state
+    setPostButtonState();
   });
   </script>
 </body>
